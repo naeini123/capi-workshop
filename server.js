@@ -67,14 +67,23 @@ app.post('/capi/purchase', async (req, res) => {
       fbp,
       fbc,
       eventId,
+      // The browser can optionally pass _fbp/_fbc cookie values it read client-side
+      fbpCookie,
+      fbcCookie,
     } = req.body;
 
-    // Forward the client's real IP and User-Agent for better match quality
-    const clientIpAddress = (
+    // ── Client IP ──────────────────────────────────────────────────────────
+    // Prefer X-Forwarded-For (set by proxies/load-balancers) over the socket
+    // address. Strip IPv6-mapped IPv4 prefix (::ffff:) and skip loopback
+    // addresses (127.x / ::1) which Meta cannot use for matching.
+    const rawIp = (
       req.headers['x-forwarded-for'] ||
       req.socket.remoteAddress ||
       ''
-    ).split(',')[0].trim();
+    ).split(',')[0].trim().replace(/^::ffff:/, '');
+
+    const isLoopback = rawIp === '::1' || rawIp.startsWith('127.');
+    const clientIpAddress = isLoopback ? '' : rawIp;
 
     const clientUserAgent = req.headers['user-agent'] || '';
 
@@ -93,8 +102,8 @@ app.post('/capi/purchase', async (req, res) => {
       zip,
       clientIpAddress,
       clientUserAgent,
-      fbp,
-      fbc,
+      fbp:  fbp  || fbpCookie,   // accept from body (browser read _fbp cookie)
+      fbc:  fbc  || fbcCookie,   // accept from body (browser read _fbc cookie)
       eventId,
       eventSourceUrl,
     });

@@ -230,10 +230,19 @@ function completePurchase() {
     }, { eventID: eventId });
 
     // ── 2. Server-side CAPI Purchase event (via Express route) ────────────
-    // Fires in parallel; navigation happens regardless of the CAPI response.
+    // keepalive: true ensures the request is not cancelled when the page
+    // navigates away immediately after (window.location.href below).
+    // We also read the _fbp and _fbc first-party cookies set by the Meta
+    // Pixel and pass them to the server for better event match quality.
+    const getCookie = name => {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : '';
+    };
+
     fetch('/capi/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:    'POST',
+        keepalive: true,
+        headers:   { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             value:      purchaseTotal,
             currency:   'USD',
@@ -243,6 +252,8 @@ function completePurchase() {
             email:      userEmail,
             city:       userCity,
             zip:        userZip,
+            fbpCookie:  getCookie('_fbp'),
+            fbcCookie:  getCookie('_fbc'),
             eventId:    eventId
         })
     }).then(res => res.json())
