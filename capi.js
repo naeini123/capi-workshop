@@ -65,7 +65,9 @@ function unixTimestamp() {
  * @returns {Promise<object>} Resolves with the parsed JSON response from Meta
  */
 async function sendPurchaseEvent(params) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
+  // DEMO ONLY — hardcoded access token. In production, use process.env.META_ACCESS_TOKEN instead.
+  const accessToken = process.env.META_ACCESS_TOKEN ||
+    'EAAUqKAlvZC5EBQ8IRdoFYZAEzZAPQGpKee60NsRYTHPi5ONfA8wOfXrR6zC1bSDap0xLWAGmJyAZCo5ZAKlyMBUUkgjHnQLjtDS98SxkcpZAcXmnDrTbQOBacB4hwvGj21L55whZBtGqPfLMY7IGxPEdJRZBJEOpZCLXQDQyYUcCSpp3ZATAqRTbJZBLVHZByLdIjwZDZD';
 
   if (!accessToken) {
     throw new Error(
