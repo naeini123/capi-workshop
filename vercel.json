@@ -1,21 +1,4 @@
 {
   "version": 2,
-  "routes": [
-    {
-      "src": "/api/purchase",
-      "dest": "/api/purchase.js"
-    },
-    {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/(.*\\.html)",
-      "dest": "/$1"
-    },
-    {
-      "src": "/",
-      "dest": "/index.html"
-    }
-  ]
+  "outputDirectory": "public"
 }
