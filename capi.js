@@ -120,12 +120,13 @@ function buildUserData(paramBuilder, opts) {
 
 /**
  * Sends a server-side Purchase event to the Meta Conversions API.
- * No event_id is included — deduplication against the browser Pixel is disabled.
+ * Accepts an event_id for deduplication against the browser Pixel.
  *
  * @param {object} opts
  * @param {ParamBuilder} opts.paramBuilder      - An initialized CAPI Parameter Builder instance
  * @param {string}   opts.eventSourceUrl    - Full URL of the page where the purchase occurred
  * @param {string}   opts.clientUserAgent   - Requester User-Agent header (plain text — required by Meta)
+ * @param {string}   opts.eventId           - Unique event ID for deduplication with the browser Pixel
  * @param {string}   [opts.externalId]      - Unique user/session ID
  * @param {string}   [opts.email]           - User email — will be normalized & hashed by ParamBuilder
  * @param {string}   [opts.phone]           - User phone — will be normalized & hashed by ParamBuilder
@@ -150,7 +151,7 @@ async function sendPurchaseEvent(opts) {
             {
                 event_name:       'Purchase',
                 event_time:       nowInSeconds(),
-                // No event_id — deduplication with browser Pixel is intentionally disabled
+                event_id:         opts.eventId,
                 event_source_url: opts.eventSourceUrl,
                 action_source:    'website',
                 user_data:        userData,
@@ -172,12 +173,13 @@ async function sendPurchaseEvent(opts) {
 
 /**
  * Sends a server-side AddToCart event to the Meta Conversions API.
- * No event_id is included — deduplication against the browser Pixel is disabled.
+ * Accepts an event_id for deduplication against the browser Pixel.
  *
  * @param {object} opts
  * @param {ParamBuilder} opts.paramBuilder      - An initialized CAPI Parameter Builder instance
  * @param {string}   opts.eventSourceUrl    - Full URL of the page where the add-to-cart occurred
  * @param {string}   opts.clientUserAgent   - Requester User-Agent header (plain text — required by Meta)
+ * @param {string}   opts.eventId           - Unique event ID for deduplication with the browser Pixel
  * @param {string}   [opts.externalId]      - Unique user/session ID
  * @param {number}   opts.value             - Price of the item added
  * @param {string}   opts.contentId         - Product content ID
@@ -193,7 +195,7 @@ async function sendAddToCartEvent(opts) {
             {
                 event_name:       'AddToCart',
                 event_time:       nowInSeconds(),
-                // No event_id — deduplication with browser Pixel is intentionally disabled
+                event_id:         opts.eventId,
                 event_source_url: opts.eventSourceUrl,
                 action_source:    'website',
                 user_data:        userData,

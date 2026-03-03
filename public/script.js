@@ -125,17 +125,8 @@ function addToCart(name, price) {
 
     const contentId = productIds[name] || name.toLowerCase().replace(/\s+/g, '-');
 
-    // 1. Browser-side Pixel AddToCart
-    fbq('track', 'AddToCart', {
-        content_ids:  [contentId],
-        content_type: 'product',
-        contents:     [{ id: contentId, quantity: 1 }],
-        content_name: name,
-        currency:     'USD',
-        value:        price
-    });
-
-    // 2. Server-side CAPI AddToCart (no deduplication — no eventID)
+    // 1. Server-side CAPI AddToCart — fires first to generate the event_id.
+    //    The returned event_id is then passed to the Pixel call for deduplication.
     fetch('/api/capi/add-to-cart', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,7 +136,21 @@ function addToCart(name, price) {
             contentId:      contentId,
             contentName:    name,
         }),
-    }).catch(err => console.error('[CAPI] AddToCart fetch error:', err));
+    })
+    .then(res => res.json())
+    .then(data => {
+        // 2. Browser-side Pixel AddToCart — uses the server-generated event_id
+        //    so Meta can deduplicate this event against the CAPI call above.
+        fbq('track', 'AddToCart', {
+            content_ids:  [contentId],
+            content_type: 'product',
+            contents:     [{ id: contentId, quantity: 1 }],
+            content_name: name,
+            currency:     'USD',
+            value:        price
+        }, { eventID: data.eventId });
+    })
+    .catch(err => console.error('[CAPI] AddToCart fetch error:', err));
 }
 
 // ─── Remove from Cart ──────────────────────────────────────────────────────────
@@ -266,17 +271,8 @@ function completePurchase() {
         external_id: externalId,
     });
 
-    // 1. Browser-side Pixel Purchase (no eventID — deduplication is disabled)
-    fbq('track', 'Purchase', {
-        content_ids:  contentIds,
-        content_type: 'product',
-        contents:     contents,
-        currency:     'USD',
-        num_items:    numItems,
-        value:        total
-    });
-
-    // 2. Server-side CAPI Purchase (no event_id — deduplication is disabled)
+    // 1. Server-side CAPI Purchase — fires first to generate the event_id.
+    //    The returned event_id is then passed to the Pixel call for deduplication.
     fetch('/api/capi/purchase', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,11 +289,32 @@ function completePurchase() {
             contents,
             numItems,
         }),
-    }).catch(err => console.error('[CAPI] fetch error:', err));
+    })
+    .then(res => res.json())
+    .then(data => {
+        // 2. Browser-side Pixel Purchase — uses the server-generated event_id
+        //    so Meta can deduplicate this event against the CAPI call above.
+        fbq('track', 'Purchase', {
+            content_ids:  contentIds,
+            content_type: 'product',
+            contents:     contents,
+            currency:     'USD',
+            num_items:    numItems,
+            value:        total
+        }, { eventID: data.eventId });
 
-    // Clear cart and redirect
-    cart = {};
-    saveCartToLocalStorage();
-    updateCartCount();
-    window.location.href = 'purchase-confirmation.html';
+        // Clear cart and redirect after the CAPI call completes
+        cart = {};
+        saveCartToLocalStorage();
+        updateCartCount();
+        window.location.href = 'purchase-confirmation.html';
+    })
+    .catch(err => {
+        console.error('[CAPI] fetch error:', err);
+        // Redirect even if CAPI call fails to avoid blocking the user
+        cart = {};
+        saveCartToLocalStorage();
+        updateCartCount();
+        window.location.href = 'purchase-confirmation.html';
+    });
 }
