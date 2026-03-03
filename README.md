@@ -40,7 +40,7 @@ The site will be available at `http://localhost:3000`.
 | `InitiateCheckout` | User clicks checkout button |
 | `Purchase` | User completes purchase |
 
-**Pixel ID:** `935724062207149`
+**Pixel ID:** `1914070242854182`
 
 ## Adding CAPI
 
