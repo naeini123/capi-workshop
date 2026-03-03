@@ -5,8 +5,8 @@
  *
  * Serves all static files from the /public directory.
  * Exposes:
- *   POST /api/capi/purchase     — forwards Purchase events to Meta CAPI (no deduplication)
- *   POST /api/capi/add-to-cart  — forwards AddToCart events to Meta CAPI (no deduplication)
+ *   POST /api/capi/purchase     — forwards Purchase events to Meta CAPI (with event_id deduplication)
+ *   POST /api/capi/add-to-cart  — forwards AddToCart events to Meta CAPI (with event_id deduplication)
  *
  * Run with: npm start
  */
@@ -16,8 +16,18 @@ require('dotenv').config();
 
 const express = require('express');
 const path    = require('path');
+const crypto  = require('crypto');
 const cookie  = require('cookie'); // Built-in transitive dep via Express — no extra install needed
 const { ParamBuilder } = require('capi-param-builder-nodejs');
+
+/**
+ * Generates a unique event ID for CAPI/Pixel deduplication.
+ * Format: evt_<timestamp>_<8 random hex bytes>
+ * @returns {string}
+ */
+function generateEventId() {
+    return `evt_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+}
 
 const { sendPurchaseEvent, sendAddToCartEvent } = require('./capi');
 
@@ -79,8 +89,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 /**
  * POST /api/capi/purchase
  *
- * Sends a server-side Purchase event to Meta CAPI.
- * No event_id is sent — deduplication with the browser Pixel is disabled.
+ * Generates a unique event_id, sends a server-side Purchase event to Meta CAPI,
+ * and returns the event_id to the client for use in the browser Pixel call.
  *
  * Expected JSON body:
  * {
@@ -119,10 +129,15 @@ app.post('/api/capi/purchase', async (req, res) => {
             numItems,
         } = req.body;
 
+        // Generate a unique event_id server-side for Pixel/CAPI deduplication.
+        // This same ID will be returned to the client and passed to fbq('track', ...).
+        const eventId = generateEventId();
+
         const result = await sendPurchaseEvent({
             paramBuilder,
             eventSourceUrl,
             clientUserAgent: req.headers['user-agent'] || '',
+            eventId,
             externalId,
             email,
             phone,
@@ -138,19 +153,19 @@ app.post('/api/capi/purchase', async (req, res) => {
             numItems,
         });
 
-        res.json({ success: true, meta: result });
+        res.json({ success: true, eventId, meta: result });
     } catch (err) {
         console.error('[CAPI] Error sending Purchase event:', err.message);
         res.status(500).json({ success: false, error: err.message });
     }
-});
+};
 
 // ─── CAPI: AddToCart event ─────────────────────────────────────────────────────
 /**
  * POST /api/capi/add-to-cart
  *
- * Sends a server-side AddToCart event to Meta CAPI.
- * No event_id is sent — deduplication with the browser Pixel is disabled.
+ * Generates a unique event_id, sends a server-side AddToCart event to Meta CAPI,
+ * and returns the event_id to the client for use in the browser Pixel call.
  *
  * Expected JSON body:
  * {
@@ -171,17 +186,22 @@ app.post('/api/capi/add-to-cart', async (req, res) => {
             contentName,
         } = req.body;
 
+        // Generate a unique event_id server-side for Pixel/CAPI deduplication.
+        // This same ID will be returned to the client and passed to fbq('track', ...).
+        const eventId = generateEventId();
+
         const result = await sendAddToCartEvent({
             paramBuilder,
             eventSourceUrl,
             clientUserAgent: req.headers['user-agent'] || '',
+            eventId,
             externalId,
             value,
             contentId,
             contentName,
         });
 
-        res.json({ success: true, meta: result });
+        res.json({ success: true, eventId, meta: result });
     } catch (err) {
         console.error('[CAPI] Error sending AddToCart event:', err.message);
         res.status(500).json({ success: false, error: err.message });
