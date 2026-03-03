@@ -23,6 +23,22 @@
     <noscript><img height="1" width="1" style="display:none"
       src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/></noscript>
     <!-- End Meta Pixel Base Code -->
+
+    <!-- CAPI Parameter Builder Client-Side Script -->
+    <script src="https://capi-automation.s3.us-east-2.amazonaws.com/public/client_js/capiParamBuilder/clientParamBuilder.bundle.js"></script>
+    <script>
+      (async () => {
+        const getIpFn = async function () {
+            try {
+                return await (await fetch("/api/get-ip")).text();
+            } catch (e) {
+                return null;
+            }
+        };
+        await clientParamBuilder.processAndCollectAllParams(window.location.href, getIpFn);
+      })();
+    </script>
+    <!-- End CAPI Parameter Builder Client-Side Script -->
 </head>
 <body>
     <header>

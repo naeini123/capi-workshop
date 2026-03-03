@@ -1,4 +1,4 @@
-'use strict';
+''''use strict';
 
 /**
  * server.js — Express server for the Liverpool Fan Shop demo site.
@@ -15,50 +15,64 @@ require('dotenv').config();
 
 const express = require('express');
 const path    = require('path');
+const cookieParser = require('cookie-parser'); // Import cookie-parser
+const { ParamBuilder } = require('capi-param-builder-nodejs');
 
 const { sendPurchaseEvent } = require('./capi');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// Parse incoming JSON request bodies
+// Instantiate the ParamBuilder with the eTLD+1 domain
+// This should be dynamically determined or configured in a real app
+const paramBuilder = new ParamBuilder(['localhost']);
+
+// Parse incoming JSON request bodies and cookies
 app.use(express.json());
+app.use(cookieParser());
+
+// Middleware to process CAPI params on every request
+app.use((req, res, next) => {
+    const cookiesToSet = paramBuilder.processRequest(
+        req.hostname,
+        req.query,
+        req.cookies,
+        req.get('referer'),
+        req.headers['x-forwarded-for'],
+        req.ip || req.socket.remoteAddress
+    );
+
+    cookiesToSet.forEach(cookie => {
+        res.cookie(cookie.name, cookie.value, { 
+            maxAge: cookie.maxAge * 1000, // maxAge is in seconds, convert to ms
+            domain: cookie.domain,
+            path: '/', 
+            secure: req.secure, // Only set secure cookies on HTTPS
+            httpOnly: false // Set to false to allow client-side script access
+        });
+    });
+
+    next();
+});
+
+// Endpoint for the client-side script to fetch the user's IP
+app.get("/api/get-ip", (req, res) => {
+    const clientIp = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+                     req.ip ||
+                     req.socket.remoteAddress ||
+                     "";
+    res.send(clientIp);
+});
 
 // Serve static files from /public
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── CAPI: Purchase event ──────────────────────────────────────────────────────
-/**
- * POST /api/capi/purchase
- *
- * Expected JSON body:
- * {
- *   eventId:       string,   // unique ID for deduplication (matches browser Pixel eventID)
- *   eventSourceUrl:string,   // full URL of the checkout page
- *   fbp:           string,   // _fbp cookie value (optional but strongly recommended)
- *   fbc:           string,   // _fbc cookie value (optional — present when user clicked a Meta ad)
- *   externalId:    string,   // session/user ID for fallback deduplication (optional)
- *   email:         string,   // optional — from checkout form (will be hashed server-side)
- *   phone:         string,   // optional — from checkout form (will be hashed server-side)
- *   firstName:     string,   // optional — from checkout form (will be hashed server-side)
- *   lastName:      string,   // optional — from checkout form (will be hashed server-side)
- *   city:          string,   // optional — from checkout form (will be hashed server-side)
- *   state:         string,   // optional — from checkout form (will be hashed server-side)
- *   zip:           string,   // optional — from checkout form (will be hashed server-side)
- *   country:       string,   // optional — ISO alpha-2 (will be hashed server-side)
- *   value:         number,   // order total (USD)
- *   contentIds:    string[], // product content IDs
- *   contents:      Array,    // [{ id, quantity }, ...]
- *   numItems:      number    // total item count
- * }
- */
 app.post('/api/capi/purchase', async (req, res) => {
     try {
         const {
             eventId,
             eventSourceUrl,
-            fbp,
-            fbc,
             externalId,
             email,
             phone,
@@ -74,19 +88,11 @@ app.post('/api/capi/purchase', async (req, res) => {
             numItems,
         } = req.body;
 
-        // Prefer X-Forwarded-For (set by proxies/Vercel) over direct socket IP
-        const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-                      || req.ip
-                      || req.socket.remoteAddress
-                      || '';
-
         const result = await sendPurchaseEvent({
+            paramBuilder, // Pass the paramBuilder instance
             eventId,
             eventSourceUrl,
-            clientIpAddress: clientIp,
             clientUserAgent: req.headers['user-agent'] || '',
-            fbp,
-            fbc,
             externalId,
             email,
             phone,
@@ -117,3 +123,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Liverpool Fan Shop running at http://localhost:${PORT}`);
 });
+'''
