@@ -208,6 +208,16 @@ function initiateCheckout() {
     window.location.href = 'checkout.html';
 }
 
+// ─── Cookie helper ────────────────────────────────────────────────────────────
+/**
+ * Read a browser cookie by name. Returns empty string if not found.
+ * Used to capture _fbp and _fbc for the CAPI payload.
+ */
+function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(?:^|;\\s*)' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+    return match ? decodeURIComponent(match[1]) : '';
+}
+
 // ─── Complete Purchase (checkout.html) ────────────────────────────────────────
 function completePurchase() {
     updateVariables();
@@ -224,11 +234,26 @@ function completePurchase() {
     // call — Meta uses this to deduplicate the two signals for the same event.
     const eventId = 'purchase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
 
+    // Read Meta first-party cookies for identity matching
+    // fbp: Meta browser ID (set by Pixel on first page load)
+    // fbc: Meta click ID (set when user arrives via a Meta ad with fbclid param)
+    const fbp = getCookie('_fbp');
+    const fbc = getCookie('_fbc');
+
+    // Use a session-scoped external ID as a fallback deduplication signal.
+    // Stored in sessionStorage so it persists across the checkout flow.
+    let externalId = sessionStorage.getItem('capiExternalId');
+    if (!externalId) {
+        externalId = 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+        sessionStorage.setItem('capiExternalId', externalId);
+    }
+
     // Re-init Pixel with PII for advanced matching
     fbq('init', '1914070242854182', {
         em: userEmail,
         ct: userCity ? userCity.toLowerCase().replace(/\s+/g, '') : '',
-        zp: userZip
+        zp: userZip,
+        external_id: externalId,
     });
 
     // 1. Browser-side Pixel Purchase (with eventID for deduplication)
@@ -247,6 +272,10 @@ function completePurchase() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             eventId,
+            eventSourceUrl: window.location.href,  // required for all website events
+            fbp,                                    // Meta browser ID cookie (plain text)
+            fbc,                                    // Meta click ID cookie (plain text)
+            externalId,                             // fallback deduplication signal
             email:      userEmail,
             city:       userCity,
             zip:        userZip,

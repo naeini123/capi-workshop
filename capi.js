@@ -27,6 +27,9 @@ const PIXEL_ID        = process.env.META_PIXEL_ID        || '1914070242854182';
 const TEST_EVENT_CODE = process.env.META_TEST_EVENT_CODE || 'TEST38406';
 const API_VERSION     = 'v19.0';
 
+// ─── Demo token (fallback for workshop use — replace with env var in production) ───────────────
+const DEMO_ACCESS_TOKEN = 'EAAUqKAlvZC5EBQ1mUKY2DG1FaMY7eyRiLiRdjWlCzgwFbPXkZCgMDM2SgtLAdTwTOlWJp2sHZBlXof0zMZAZCLOCuQ2zqM3Km2DtDJjlqm6a2Ph2m1QM9vQUhKHkDeAL6632KhVHztSOa9Cz6pEl8RQkvjorEHEabmCCKgj0ZBNiJhOYmr78d5LeaNkBs9fwZDZD';
+
 // ─── PII Normalization & Hashing ───────────────────────────────────────────────
 
 /**
@@ -47,46 +50,59 @@ function sha256(value) {
  * Field  | Normalization before hashing
  * -------|------------------------------------------------------
  * em     | trim, lowercase
+ * ph     | remove symbols/letters/leading zeros, include country code
+ * fn/ln  | trim, lowercase, no punctuation
  * ct     | trim, lowercase, remove all spaces
- * zp     | trim, lowercase, remove spaces; for US: keep only digits
- * fn/ln  | trim, lowercase, remove punctuation (if added in future)
+ * st     | trim, lowercase, 2-char ANSI code
+ * zp     | trim, lowercase, no dash; US: first 5 digits only
+ * country| trim, lowercase, ISO 3166-1 alpha-2
  */
 
-/**
- * Normalizes an email address and returns its SHA-256 hash.
- * @param {string} email
- * @returns {string|null}
- */
 function hashEmail(email) {
     if (!email) return null;
-    const normalized = email.trim().toLowerCase();
+    return sha256(email.trim().toLowerCase());
+}
+
+function hashPhone(phone) {
+    if (!phone) return null;
+    // Remove all non-digit characters except leading +
+    const normalized = phone.trim().replace(/[^\d]/g, '');
     return sha256(normalized);
 }
 
-/**
- * Normalizes a city name and returns its SHA-256 hash.
- * @param {string} city
- * @returns {string|null}
- */
+function hashFirstName(fn) {
+    if (!fn) return null;
+    return sha256(fn.trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, ''));
+}
+
+function hashLastName(ln) {
+    if (!ln) return null;
+    return sha256(ln.trim().toLowerCase().replace(/[^\p{L}\p{N}]/gu, ''));
+}
+
 function hashCity(city) {
     if (!city) return null;
-    const normalized = city.trim().toLowerCase().replace(/\s+/g, '');
-    return sha256(normalized);
+    return sha256(city.trim().toLowerCase().replace(/\s+/g, ''));
 }
 
-/**
- * Normalizes a postal/ZIP code and returns its SHA-256 hash.
- * Strips all spaces and lowercases; for US ZIPs only the 5-digit root is kept.
- * @param {string} zip
- * @returns {string|null}
- */
+function hashState(state) {
+    if (!state) return null;
+    // Use 2-char ANSI abbreviation, lowercase
+    return sha256(state.trim().toLowerCase().replace(/\s+/g, '').slice(0, 2));
+}
+
 function hashZip(zip) {
     if (!zip) return null;
-    // Remove spaces, lowercase
     let normalized = zip.trim().toLowerCase().replace(/\s+/g, '');
     // For US ZIP+4 (e.g. "90210-1234"), keep only the 5-digit root
     normalized = normalized.replace(/^(\d{5})-?\d{4}$/, '$1');
     return sha256(normalized);
+}
+
+function hashCountry(country) {
+    if (!country) return null;
+    // Expect ISO 3166-1 alpha-2, lowercase
+    return sha256(country.trim().toLowerCase().slice(0, 2));
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -103,7 +119,7 @@ function nowInSeconds() {
  * Sends a raw JSON payload to the Meta CAPI endpoint via HTTPS POST.
  *
  * @param {string} accessToken  - Meta system-user access token
- * @param {object} payload      - Full CAPI request body (already serialised)
+ * @param {object} payload      - Full CAPI request body
  * @returns {Promise<object>}   - Parsed JSON response from Meta
  */
 function postToMeta(accessToken, payload) {
@@ -124,14 +140,24 @@ function postToMeta(accessToken, payload) {
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => {
                 try {
-                    resolve(JSON.parse(data));
+                    const parsed = JSON.parse(data);
+                    // Log Meta API errors to the server console for visibility
+                    if (parsed.error) {
+                        console.error('[CAPI] Meta API error:', JSON.stringify(parsed.error));
+                    } else {
+                        console.log('[CAPI] Meta response:', JSON.stringify(parsed));
+                    }
+                    resolve(parsed);
                 } catch (e) {
                     resolve({ raw: data });
                 }
             });
         });
 
-        req.on('error', reject);
+        req.on('error', (err) => {
+            console.error('[CAPI] HTTPS request error:', err.message);
+            reject(err);
+        });
         req.write(body);
         req.end();
     });
@@ -139,53 +165,78 @@ function postToMeta(accessToken, payload) {
 
 // ─── Public API ────────────────────────────────────────────────────────────────
 
-// ─── Demo token (fallback for workshop use — replace with env var in production) ───────────────
-const DEMO_ACCESS_TOKEN = 'EAAUqKAlvZC5EBQ1mUKY2DG1FaMY7eyRiLiRdjWlCzgwFbPXkZCgMDM2SgtLAdTwTOlWJp2sHZBlXof0zMZAZCLOCuQ2zqM3Km2DtDJjlqm6a2Ph2m1QM9vQUhKHkDeAL6632KhVHztSOa9Cz6pEl8RQkvjorEHEabmCCKgj0ZBNiJhOYmr78d5LeaNkBs9fwZDZD';
-
 /**
  * Sends a server-side Purchase event to the Meta Conversions API.
  * All PII fields are normalized and SHA-256 hashed before transmission.
  *
  * @param {object} opts
- * @param {string}   opts.eventId         - Unique event ID (deduplication key shared with browser Pixel)
- * @param {string}   opts.clientIpAddress - Requester IP address (not hashed — sent as-is per Meta spec)
- * @param {string}   opts.clientUserAgent - Requester User-Agent header (not hashed — sent as-is per Meta spec)
- * @param {string}   [opts.email]         - User email — will be normalized & SHA-256 hashed
- * @param {string}   [opts.city]          - User city  — will be normalized & SHA-256 hashed
- * @param {string}   [opts.zip]           - User ZIP   — will be normalized & SHA-256 hashed
- * @param {number}   opts.value           - Order total in USD
- * @param {string[]} opts.contentIds      - Array of product content IDs
- * @param {Array}    opts.contents        - Array of { id, quantity } objects
- * @param {number}   opts.numItems        - Total number of items purchased
- * @returns {Promise<object>}             - Meta API response
+ * @param {string}   opts.eventId           - Unique event ID (deduplication key shared with browser Pixel)
+ * @param {string}   opts.eventSourceUrl    - Full URL of the page where the purchase occurred
+ * @param {string}   opts.clientIpAddress   - Requester IP address (plain text — required by Meta)
+ * @param {string}   opts.clientUserAgent   - Requester User-Agent header (plain text — required by Meta)
+ * @param {string}   [opts.fbp]             - _fbp cookie value (plain text — do not hash)
+ * @param {string}   [opts.fbc]             - _fbc cookie value (plain text — do not hash)
+ * @param {string}   [opts.externalId]      - Unique user/session ID for deduplication fallback
+ * @param {string}   [opts.email]           - User email — normalized & SHA-256 hashed
+ * @param {string}   [opts.phone]           - User phone — normalized & SHA-256 hashed
+ * @param {string}   [opts.firstName]       - User first name — normalized & SHA-256 hashed
+ * @param {string}   [opts.lastName]        - User last name — normalized & SHA-256 hashed
+ * @param {string}   [opts.city]            - User city — normalized & SHA-256 hashed
+ * @param {string}   [opts.state]           - User state (2-char) — normalized & SHA-256 hashed
+ * @param {string}   [opts.zip]             - User ZIP — normalized & SHA-256 hashed
+ * @param {string}   [opts.country]         - User country (ISO alpha-2) — normalized & SHA-256 hashed
+ * @param {number}   opts.value             - Order total in USD
+ * @param {string[]} opts.contentIds        - Array of product content IDs
+ * @param {Array}    opts.contents          - Array of { id, quantity } objects
+ * @param {number}   opts.numItems          - Total number of items purchased
+ * @returns {Promise<object>}               - Meta API response
  */
 async function sendPurchaseEvent(opts) {
     // Use the env var if set, otherwise fall back to the hardcoded demo token
     const accessToken = process.env.META_ACCESS_TOKEN || DEMO_ACCESS_TOKEN;
 
-    // Build user_data — IP and User-Agent are sent in plain text (required by Meta);
-    // all other PII fields are normalized then SHA-256 hashed.
+    // ── user_data ─────────────────────────────────────────────────────────────
+    // client_ip_address and client_user_agent are sent in plain text (Meta spec).
+    // fbp and fbc are browser cookie values — do NOT hash them.
+    // All other PII is normalized then SHA-256 hashed.
     const userData = {
         client_ip_address: opts.clientIpAddress,
         client_user_agent: opts.clientUserAgent,
     };
 
-    const hashedEmail = hashEmail(opts.email);
-    const hashedCity  = hashCity(opts.city);
-    const hashedZip   = hashZip(opts.zip);
+    // Hashed PII fields
+    const hashedEmail     = hashEmail(opts.email);
+    const hashedPhone     = hashPhone(opts.phone);
+    const hashedFirstName = hashFirstName(opts.firstName);
+    const hashedLastName  = hashLastName(opts.lastName);
+    const hashedCity      = hashCity(opts.city);
+    const hashedState     = hashState(opts.state);
+    const hashedZip       = hashZip(opts.zip);
+    const hashedCountry   = hashCountry(opts.country);
 
-    if (hashedEmail) userData.em = hashedEmail;
-    if (hashedCity)  userData.ct = hashedCity;
-    if (hashedZip)   userData.zp = hashedZip;
+    if (hashedEmail)     userData.em      = hashedEmail;
+    if (hashedPhone)     userData.ph      = hashedPhone;
+    if (hashedFirstName) userData.fn      = hashedFirstName;
+    if (hashedLastName)  userData.ln      = hashedLastName;
+    if (hashedCity)      userData.ct      = hashedCity;
+    if (hashedState)     userData.st      = hashedState;
+    if (hashedZip)       userData.zp      = hashedZip;
+    if (hashedCountry)   userData.country = hashedCountry;
+
+    // Plain-text identifiers (do NOT hash)
+    if (opts.fbp)        userData.fbp        = opts.fbp;
+    if (opts.fbc)        userData.fbc        = opts.fbc;
+    if (opts.externalId) userData.external_id = opts.externalId;
 
     const payload = {
         data: [
             {
-                event_name:    'Purchase',
-                event_time:    nowInSeconds(),
-                event_id:      opts.eventId,  // deduplication key — must match the browser Pixel eventID
-                action_source: 'website',
-                user_data:     userData,
+                event_name:       'Purchase',
+                event_time:       nowInSeconds(),
+                event_id:         opts.eventId,       // deduplication key — must match browser Pixel eventID
+                event_source_url: opts.eventSourceUrl, // required for all website events
+                action_source:    'website',
+                user_data:        userData,
                 custom_data: {
                     currency:     'USD',
                     value:        opts.value,

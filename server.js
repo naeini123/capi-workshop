@@ -33,43 +33,75 @@ app.use(express.static(path.join(__dirname, 'public')));
  *
  * Expected JSON body:
  * {
- *   eventId:    string,   // unique ID for deduplication
- *   email:      string,   // optional — from checkout form
- *   city:       string,   // optional — from checkout form
- *   zip:        string,   // optional — from checkout form
- *   value:      number,   // order total (USD)
- *   contentIds: string[], // product content IDs
- *   contents:   Array,    // [{ id, quantity }, ...]
- *   numItems:   number    // total item count
+ *   eventId:       string,   // unique ID for deduplication (matches browser Pixel eventID)
+ *   eventSourceUrl:string,   // full URL of the checkout page
+ *   fbp:           string,   // _fbp cookie value (optional but strongly recommended)
+ *   fbc:           string,   // _fbc cookie value (optional — present when user clicked a Meta ad)
+ *   externalId:    string,   // session/user ID for fallback deduplication (optional)
+ *   email:         string,   // optional — from checkout form (will be hashed server-side)
+ *   phone:         string,   // optional — from checkout form (will be hashed server-side)
+ *   firstName:     string,   // optional — from checkout form (will be hashed server-side)
+ *   lastName:      string,   // optional — from checkout form (will be hashed server-side)
+ *   city:          string,   // optional — from checkout form (will be hashed server-side)
+ *   state:         string,   // optional — from checkout form (will be hashed server-side)
+ *   zip:           string,   // optional — from checkout form (will be hashed server-side)
+ *   country:       string,   // optional — ISO alpha-2 (will be hashed server-side)
+ *   value:         number,   // order total (USD)
+ *   contentIds:    string[], // product content IDs
+ *   contents:      Array,    // [{ id, quantity }, ...]
+ *   numItems:      number    // total item count
  * }
  */
 app.post('/api/capi/purchase', async (req, res) => {
     try {
         const {
             eventId,
+            eventSourceUrl,
+            fbp,
+            fbc,
+            externalId,
             email,
+            phone,
+            firstName,
+            lastName,
             city,
+            state,
             zip,
+            country,
             value,
             contentIds,
             contents,
             numItems,
         } = req.body;
 
+        // Prefer X-Forwarded-For (set by proxies/Vercel) over direct socket IP
+        const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+                      || req.ip
+                      || req.socket.remoteAddress
+                      || '';
+
         const result = await sendPurchaseEvent({
             eventId,
-            clientIpAddress: req.ip || req.socket.remoteAddress,
+            eventSourceUrl,
+            clientIpAddress: clientIp,
             clientUserAgent: req.headers['user-agent'] || '',
+            fbp,
+            fbc,
+            externalId,
             email,
+            phone,
+            firstName,
+            lastName,
             city,
+            state,
             zip,
+            country,
             value,
             contentIds,
             contents,
             numItems,
         });
 
-        console.log('[CAPI] Purchase event sent:', JSON.stringify(result));
         res.json({ success: true, meta: result });
     } catch (err) {
         console.error('[CAPI] Error sending Purchase event:', err.message);
