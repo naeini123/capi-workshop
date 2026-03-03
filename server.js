@@ -78,6 +78,10 @@ app.post('/capi/purchase', async (req, res) => {
 
     const clientUserAgent = req.headers['user-agent'] || '';
 
+    // event_source_url: the page where the purchase occurred.
+    // The browser sends the checkout page URL in the Referer header.
+    const eventSourceUrl = req.headers['referer'] || '';
+
     const result = await sendPurchaseEvent({
       value,
       currency,
@@ -92,6 +96,7 @@ app.post('/capi/purchase', async (req, res) => {
       fbp,
       fbc,
       eventId,
+      eventSourceUrl,
     });
 
     console.log('[CAPI] Purchase event sent successfully:', JSON.stringify(result));

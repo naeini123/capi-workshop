@@ -49,19 +49,20 @@ function unixTimestamp() {
  * sendPurchaseEvent — fires a server-side Purchase event to Meta CAPI.
  *
  * @param {object} params
- * @param {number}   params.value          - Order total (e.g. 49.99)
- * @param {string}   params.currency       - ISO 4217 currency code (e.g. 'USD')
- * @param {string[]} params.contentIds     - Array of product content_ids
- * @param {object[]} params.contents       - Array of { id, quantity } objects
- * @param {number}   params.numItems       - Total number of items purchased
- * @param {string}   [params.email]        - Customer email (will be hashed)
- * @param {string}   [params.city]         - Customer city (will be hashed)
- * @param {string}   [params.zip]          - Customer postal code (will be hashed)
+ * @param {number}   params.value             - Order total (e.g. 49.99)
+ * @param {string}   params.currency          - ISO 4217 currency code (e.g. 'USD')
+ * @param {string[]} params.contentIds        - Array of product content_ids
+ * @param {object[]} params.contents          - Array of { id, quantity } objects
+ * @param {number}   params.numItems          - Total number of items purchased
+ * @param {string}   [params.email]           - Customer email (will be hashed)
+ * @param {string}   [params.city]            - Customer city (will be hashed)
+ * @param {string}   [params.zip]             - Customer postal code (will be hashed)
  * @param {string}   [params.clientIpAddress] - Browser IP forwarded from the request
  * @param {string}   [params.clientUserAgent] - Browser User-Agent forwarded from the request
- * @param {string}   [params.fbp]          - _fbp cookie value (if available)
- * @param {string}   [params.fbc]          - _fbc cookie value (if available)
- * @param {string}   [params.eventId]      - Deduplication event_id (should match browser Pixel)
+ * @param {string}   [params.fbp]             - _fbp cookie value (if available)
+ * @param {string}   [params.fbc]             - _fbc cookie value (if available)
+ * @param {string}   [params.eventId]         - Deduplication event_id (should match browser Pixel)
+ * @param {string}   [params.eventSourceUrl]  - The page URL where the purchase occurred
  * @returns {Promise<object>} Resolves with the parsed JSON response from Meta
  */
 async function sendPurchaseEvent(params) {
@@ -78,10 +79,10 @@ async function sendPurchaseEvent(params) {
 
   const {
     value,
-    currency      = 'USD',
-    contentIds    = [],
-    contents      = [],
-    numItems      = 0,
+    currency         = 'USD',
+    contentIds       = [],
+    contents         = [],
+    numItems         = 0,
     email,
     city,
     zip,
@@ -90,15 +91,23 @@ async function sendPurchaseEvent(params) {
     fbp,
     fbc,
     eventId,
+    eventSourceUrl,
   } = params;
 
-  // ── User data object (all PII must be hashed) ──────────────────────────────
+  // ── User data object (all PII must be hashed per Meta spec) ─────────────────
+  // Normalisation rules from:
+  //   https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters
+  //
+  // email  → trim + lowercase, then SHA-256
+  // city   → lowercase, remove all spaces/punctuation, then SHA-256
+  // zip    → lowercase, no spaces or dashes (first 5 digits for US), then SHA-256
+  // client_ip_address / client_user_agent → MUST NOT be hashed
   const userData = {
-    ...(email           && { em: sha256(email) }),
-    ...(city            && { ct: sha256(city.toLowerCase().replace(/\s+/g, '')) }),
-    ...(zip             && { zp: sha256(zip) }),
-    ...(clientIpAddress && { client_ip_address: clientIpAddress }),
-    ...(clientUserAgent && { client_user_agent: clientUserAgent }),
+    ...(email           && { em: sha256(email.trim().toLowerCase()) }),
+    ...(city            && { ct: sha256(city.trim().toLowerCase().replace(/[^a-z0-9]/g, '')) }),
+    ...(zip             && { zp: sha256(zip.trim().toLowerCase().replace(/[\s-]/g, '').slice(0, 5)) }),
+    ...(clientIpAddress && { client_ip_address: clientIpAddress }),   // do NOT hash
+    ...(clientUserAgent && { client_user_agent: clientUserAgent }),   // do NOT hash
     ...(fbp             && { fbp }),
     ...(fbc             && { fbc }),
   };
@@ -114,13 +123,19 @@ async function sendPurchaseEvent(params) {
   };
 
   // ── Event payload ──────────────────────────────────────────────────────────
+  // Required fields per spec:
+  //   event_name, event_time, user_data, action_source (required for website events)
+  // Strongly recommended:
+  //   event_source_url (required for all website events per best-practices table)
+  //   event_id         (required for deduplication with browser Pixel)
   const event = {
-    event_name:  'Purchase',
-    event_time:  unixTimestamp(),
-    action_source: 'website',
-    user_data:   userData,
-    custom_data: customData,
-    ...(eventId && { event_id: eventId }),
+    event_name:       'Purchase',
+    event_time:       unixTimestamp(),
+    action_source:    'website',
+    user_data:        userData,
+    custom_data:      customData,
+    ...(eventSourceUrl && { event_source_url: eventSourceUrl }),
+    ...(eventId        && { event_id: eventId }),
   };
 
   const body = JSON.stringify({
