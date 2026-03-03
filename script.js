@@ -197,7 +197,7 @@ if (document.getElementById('cart-summary-table')) {
     });
 }
 
-// ─── Meta Pixel: Purchase ──────────────────────────────────────────────────────
+// ─── Meta Pixel + CAPI: Purchase ──────────────────────────────────────────────
 // Function to complete purchase
 function completePurchase() {
     // Capture cart data before clearing
@@ -209,6 +209,9 @@ function completePurchase() {
     const purchaseNumItems = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
     const purchaseTotal = getCartTotal();
 
+    // Generate a unique event ID for deduplication between browser Pixel and CAPI
+    const eventId = 'purchase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+
     // Re-initialise Pixel with PII from the checkout form (manual advanced matching)
     fbq('init', '1914070242854182', {
         em: userEmail,
@@ -216,7 +219,7 @@ function completePurchase() {
         zp: userZip
     });
 
-    // Fire Meta Pixel Purchase event
+    // ── 1. Browser-side Meta Pixel Purchase event ──────────────────────────
     fbq('track', 'Purchase', {
         content_ids: purchaseContentIds,
         content_type: 'product',
@@ -224,7 +227,38 @@ function completePurchase() {
         currency: 'USD',
         num_items: purchaseNumItems,
         value: purchaseTotal
-    });
+    }, { eventID: eventId });
+
+    // ── 2. Server-side CAPI Purchase event (via Express route) ────────────
+    // keepalive: true ensures the request is not cancelled when the page
+    // navigates away immediately after (window.location.href below).
+    // We also read the _fbp and _fbc first-party cookies set by the Meta
+    // Pixel and pass them to the server for better event match quality.
+    const getCookie = name => {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : '';
+    };
+
+    fetch('/api/purchase', {
+        method:    'POST',
+        keepalive: true,
+        headers:   { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            value:      purchaseTotal,
+            currency:   'USD',
+            contentIds: purchaseContentIds,
+            contents:   purchaseContents,
+            numItems:   purchaseNumItems,
+            email:      userEmail,
+            city:       userCity,
+            zip:        userZip,
+            fbpCookie:  getCookie('_fbp'),
+            fbcCookie:  getCookie('_fbc'),
+            eventId:    eventId
+        })
+    }).then(res => res.json())
+      .then(data => console.log('[CAPI] Purchase response:', data))
+      .catch(err => console.error('[CAPI] Purchase error:', err));
 
     // Clear the cart
     cart = {};
