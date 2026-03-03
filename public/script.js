@@ -220,6 +220,10 @@ function completePurchase() {
     const numItems   = Object.values(cart).reduce((a, i) => a + i.quantity, 0);
     const total      = getCartTotal();
 
+    // Generate a unique event ID shared by both the browser Pixel and the CAPI
+    // call — Meta uses this to deduplicate the two signals for the same event.
+    const eventId = 'purchase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+
     // Re-init Pixel with PII for advanced matching
     fbq('init', '1914070242854182', {
         em: userEmail,
@@ -227,7 +231,7 @@ function completePurchase() {
         zp: userZip
     });
 
-    // 1. Browser-side Pixel Purchase
+    // 1. Browser-side Pixel Purchase (with eventID for deduplication)
     fbq('track', 'Purchase', {
         content_ids:  contentIds,
         content_type: 'product',
@@ -235,7 +239,23 @@ function completePurchase() {
         currency:     'USD',
         num_items:    numItems,
         value:        total
-    });
+    }, { eventID: eventId });
+
+    // 2. Server-side CAPI Purchase (fire-and-forget — cart is cleared after)
+    fetch('/api/capi/purchase', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            eventId,
+            email:      userEmail,
+            city:       userCity,
+            zip:        userZip,
+            value:      total,
+            contentIds,
+            contents,
+            numItems,
+        }),
+    }).catch(err => console.error('[CAPI] fetch error:', err));
 
     // Clear cart and redirect
     cart = {};
