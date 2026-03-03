@@ -209,9 +209,6 @@ function completePurchase() {
     const purchaseNumItems = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
     const purchaseTotal = getCartTotal();
 
-    // Generate a shared event ID for browser-pixel / CAPI deduplication
-    const purchaseEventId = generateEventId();
-
     // Re-initialise Pixel with PII from the checkout form (manual advanced matching)
     fbq('init', '935724062207149', {
         em: userEmail,
@@ -219,7 +216,7 @@ function completePurchase() {
         zp: userZip
     });
 
-    // Fire Meta Pixel Purchase event (with event ID for deduplication)
+    // Fire Meta Pixel Purchase event
     fbq('track', 'Purchase', {
         content_ids: purchaseContentIds,
         content_type: 'product',
@@ -227,18 +224,6 @@ function completePurchase() {
         currency: 'USD',
         num_items: purchaseNumItems,
         value: purchaseTotal
-    }, { eventID: purchaseEventId });
-
-    // ─── Meta CAPI: send server-side Purchase event ────────────────────────────
-    sendCapiPurchase({
-        eventId:    purchaseEventId,
-        email:      userEmail,
-        city:       userCity,
-        zip:        userZip,
-        contents:   purchaseContents,
-        contentIds: purchaseContentIds,
-        numItems:   purchaseNumItems,
-        value:      purchaseTotal
     });
 
     // Clear the cart
