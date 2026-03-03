@@ -239,7 +239,7 @@ function completePurchase() {
         return match ? decodeURIComponent(match[1]) : '';
     };
 
-    fetch('/capi/purchase', {
+    fetch('/api/purchase', {
         method:    'POST',
         keepalive: true,
         headers:   { 'Content-Type': 'application/json' },
