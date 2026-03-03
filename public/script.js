@@ -220,9 +220,6 @@ function completePurchase() {
     const numItems   = Object.values(cart).reduce((a, i) => a + i.quantity, 0);
     const total      = getCartTotal();
 
-    // Shared event ID for Pixel ↔ CAPI deduplication
-    const eventId = 'purchase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
-
     // Re-init Pixel with PII for advanced matching
     fbq('init', '1914070242854182', {
         em: userEmail,
@@ -238,35 +235,7 @@ function completePurchase() {
         currency:     'USD',
         num_items:    numItems,
         value:        total
-    }, { eventID: eventId });
-
-    // 2. Server-side CAPI Purchase (keepalive survives page navigation)
-    const getCookie = name => {
-        const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-        return m ? decodeURIComponent(m[1]) : '';
-    };
-
-    fetch('/api/purchase', {
-        method:    'POST',
-        keepalive: true,
-        headers:   { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            value:      total,
-            currency:   'USD',
-            contentIds: contentIds,
-            contents:   contents,
-            numItems:   numItems,
-            email:      userEmail,
-            city:       userCity,
-            zip:        userZip,
-            fbpCookie:  getCookie('_fbp'),
-            fbcCookie:  getCookie('_fbc'),
-            eventId:    eventId
-        })
-    })
-    .then(res => res.json())
-    .then(data => console.log('[CAPI] Purchase response:', data))
-    .catch(err  => console.error('[CAPI] Purchase error:', err));
+    });
 
     // Clear cart and redirect
     cart = {};

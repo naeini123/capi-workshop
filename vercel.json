@@ -4,17 +4,9 @@
     {
       "src": "public/**",
       "use": "@vercel/static"
-    },
-    {
-      "src": "api/purchase.js",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
-    {
-      "src": "/api/purchase",
-      "dest": "/api/purchase.js"
-    },
     {
       "src": "/(.*)",
       "dest": "/public/$1"
