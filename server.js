@@ -4,8 +4,9 @@
  * server.js — Express server for the Liverpool Fan Shop demo site.
  *
  * Serves all static files from the /public directory.
- * Exposes a POST /api/capi/purchase route that forwards Purchase events
- * to the Meta Conversions API via the capi.js helper module.
+ * Exposes:
+ *   POST /api/capi/purchase     — forwards Purchase events to Meta CAPI (no deduplication)
+ *   POST /api/capi/add-to-cart  — forwards AddToCart events to Meta CAPI (no deduplication)
  *
  * Run with: npm start
  */
@@ -18,7 +19,7 @@ const path    = require('path');
 const cookie  = require('cookie'); // Built-in transitive dep via Express — no extra install needed
 const { ParamBuilder } = require('capi-param-builder-nodejs');
 
-const { sendPurchaseEvent } = require('./capi');
+const { sendPurchaseEvent, sendAddToCartEvent } = require('./capi');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -78,29 +79,30 @@ app.use(express.static(path.join(__dirname, 'public')));
 /**
  * POST /api/capi/purchase
  *
+ * Sends a server-side Purchase event to Meta CAPI.
+ * No event_id is sent — deduplication with the browser Pixel is disabled.
+ *
  * Expected JSON body:
  * {
- *   eventId:       string,
- *   eventSourceUrl:string,
- *   externalId:    string,   // optional
- *   email:         string,   // optional — hashed server-side by ParamBuilder
- *   phone:         string,   // optional — hashed server-side by ParamBuilder
- *   firstName:     string,   // optional
- *   lastName:      string,   // optional
- *   city:          string,   // optional
- *   state:         string,   // optional
- *   zip:           string,   // optional
- *   country:       string,   // optional
- *   value:         number,
- *   contentIds:    string[],
- *   contents:      Array,
- *   numItems:      number
+ *   eventSourceUrl: string,
+ *   externalId:     string,   // optional
+ *   email:          string,   // optional — hashed server-side by ParamBuilder
+ *   phone:          string,   // optional — hashed server-side by ParamBuilder
+ *   firstName:      string,   // optional
+ *   lastName:       string,   // optional
+ *   city:           string,   // optional
+ *   state:          string,   // optional
+ *   zip:            string,   // optional
+ *   country:        string,   // optional
+ *   value:          number,
+ *   contentIds:     string[],
+ *   contents:       Array,
+ *   numItems:       number
  * }
  */
 app.post('/api/capi/purchase', async (req, res) => {
     try {
         const {
-            eventId,
             eventSourceUrl,
             externalId,
             email,
@@ -119,7 +121,6 @@ app.post('/api/capi/purchase', async (req, res) => {
 
         const result = await sendPurchaseEvent({
             paramBuilder,
-            eventId,
             eventSourceUrl,
             clientUserAgent: req.headers['user-agent'] || '',
             externalId,
@@ -140,6 +141,49 @@ app.post('/api/capi/purchase', async (req, res) => {
         res.json({ success: true, meta: result });
     } catch (err) {
         console.error('[CAPI] Error sending Purchase event:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ─── CAPI: AddToCart event ─────────────────────────────────────────────────────
+/**
+ * POST /api/capi/add-to-cart
+ *
+ * Sends a server-side AddToCart event to Meta CAPI.
+ * No event_id is sent — deduplication with the browser Pixel is disabled.
+ *
+ * Expected JSON body:
+ * {
+ *   eventSourceUrl: string,
+ *   externalId:     string,   // optional
+ *   value:          number,
+ *   contentId:      string,
+ *   contentName:    string
+ * }
+ */
+app.post('/api/capi/add-to-cart', async (req, res) => {
+    try {
+        const {
+            eventSourceUrl,
+            externalId,
+            value,
+            contentId,
+            contentName,
+        } = req.body;
+
+        const result = await sendAddToCartEvent({
+            paramBuilder,
+            eventSourceUrl,
+            clientUserAgent: req.headers['user-agent'] || '',
+            externalId,
+            value,
+            contentId,
+            contentName,
+        });
+
+        res.json({ success: true, meta: result });
+    } catch (err) {
+        console.error('[CAPI] Error sending AddToCart event:', err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });

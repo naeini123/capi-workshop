@@ -124,6 +124,8 @@ function addToCart(name, price) {
     saveCartToLocalStorage();
 
     const contentId = productIds[name] || name.toLowerCase().replace(/\s+/g, '-');
+
+    // 1. Browser-side Pixel AddToCart
     fbq('track', 'AddToCart', {
         content_ids:  [contentId],
         content_type: 'product',
@@ -132,6 +134,18 @@ function addToCart(name, price) {
         currency:     'USD',
         value:        price
     });
+
+    // 2. Server-side CAPI AddToCart (no deduplication — no eventID)
+    fetch('/api/capi/add-to-cart', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            eventSourceUrl: window.location.href,
+            value:          price,
+            contentId:      contentId,
+            contentName:    name,
+        }),
+    }).catch(err => console.error('[CAPI] AddToCart fetch error:', err));
 }
 
 // ─── Remove from Cart ──────────────────────────────────────────────────────────
@@ -230,17 +244,13 @@ function completePurchase() {
     const numItems   = Object.values(cart).reduce((a, i) => a + i.quantity, 0);
     const total      = getCartTotal();
 
-    // Generate a unique event ID shared by both the browser Pixel and the CAPI
-    // call — Meta uses this to deduplicate the two signals for the same event.
-    const eventId = 'purchase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
-
     // Read Meta first-party cookies for identity matching
     // fbp: Meta browser ID (set by Pixel on first page load)
     // fbc: Meta click ID (set when user arrives via a Meta ad with fbclid param)
     const fbp = getCookie('_fbp');
     const fbc = getCookie('_fbc');
 
-    // Use a session-scoped external ID as a fallback deduplication signal.
+    // Use a session-scoped external ID as a user signal.
     // Stored in sessionStorage so it persists across the checkout flow.
     let externalId = sessionStorage.getItem('capiExternalId');
     if (!externalId) {
@@ -256,7 +266,7 @@ function completePurchase() {
         external_id: externalId,
     });
 
-    // 1. Browser-side Pixel Purchase (with eventID for deduplication)
+    // 1. Browser-side Pixel Purchase (no eventID — deduplication is disabled)
     fbq('track', 'Purchase', {
         content_ids:  contentIds,
         content_type: 'product',
@@ -264,18 +274,17 @@ function completePurchase() {
         currency:     'USD',
         num_items:    numItems,
         value:        total
-    }, { eventID: eventId });
+    });
 
-    // 2. Server-side CAPI Purchase (fire-and-forget — cart is cleared after)
+    // 2. Server-side CAPI Purchase (no event_id — deduplication is disabled)
     fetch('/api/capi/purchase', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            eventId,
             eventSourceUrl: window.location.href,  // required for all website events
             fbp,                                    // Meta browser ID cookie (plain text)
             fbc,                                    // Meta click ID cookie (plain text)
-            externalId,                             // fallback deduplication signal
+            externalId,                             // user session signal
             email:      userEmail,
             city:       userCity,
             zip:        userZip,

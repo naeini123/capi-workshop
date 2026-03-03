@@ -4,7 +4,7 @@
 /**
  * capi.js — Meta Conversions API (CAPI) helper module.
  *
- * Sends server-side Purchase events to the Meta Graph API.
+ * Sends server-side Purchase and AddToCart events to the Meta Graph API.
  * The access token is read exclusively from the META_ACCESS_TOKEN
  * environment variable — it is never hard-coded here.
  *
@@ -85,38 +85,15 @@ function postToMeta(accessToken, payload) {
     });
 }
 
-// ─── Public API ────────────────────────────────────────────────────────────────
-
 /**
- * Sends a server-side Purchase event to the Meta Conversions API.
- * Uses the CAPI Parameter Builder to construct the user_data payload.
+ * Builds a user_data object from a ParamBuilder instance and optional PII fields.
+ * Removes any null/undefined fields before returning.
  *
+ * @param {ParamBuilder} paramBuilder
  * @param {object} opts
- * @param {ParamBuilder} opts.paramBuilder      - An initialized CAPI Parameter Builder instance
- * @param {string}   opts.eventId           - Unique event ID (deduplication key shared with browser Pixel)
- * @param {string}   opts.eventSourceUrl    - Full URL of the page where the purchase occurred
- * @param {string}   opts.clientUserAgent   - Requester User-Agent header (plain text — required by Meta)
- * @param {string}   [opts.externalId]      - Unique user/session ID for deduplication fallback
- * @param {string}   [opts.email]           - User email — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.phone]           - User phone — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.firstName]       - User first name — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.lastName]        - User last name — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.city]            - User city — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.state]           - User state (2-char) — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.zip]             - User ZIP — will be normalized & hashed by ParamBuilder
- * @param {string}   [opts.country]         - User country (ISO alpha-2) — will be normalized & hashed by ParamBuilder
- * @param {number}   opts.value             - Order total in USD
- * @param {string[]} opts.contentIds        - Array of product content IDs
- * @param {Array}    opts.contents          - Array of { id, quantity } objects
- * @param {number}   opts.numItems          - Total number of items purchased
- * @returns {Promise<object>}               - Meta API response
+ * @returns {object}
  */
-async function sendPurchaseEvent(opts) {
-    const accessToken = process.env.META_ACCESS_TOKEN || DEMO_ACCESS_TOKEN;
-    const { paramBuilder } = opts;
-
-    // ── user_data ─────────────────────────────────────────────────────────────
-    // Use the ParamBuilder to get standardized, hashed, and formatted values.
+function buildUserData(paramBuilder, opts) {
     const userData = {
         fbc:               paramBuilder.getFbc(),
         fbp:               paramBuilder.getFbp(),
@@ -133,15 +110,47 @@ async function sendPurchaseEvent(opts) {
         country:           paramBuilder.getNormalizedAndHashedPII(opts.country, 'country'),
     };
 
-    // Remove null/undefined fields from userData
+    // Remove null/undefined fields
     Object.keys(userData).forEach(key => userData[key] == null && delete userData[key]);
+
+    return userData;
+}
+
+// ─── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Sends a server-side Purchase event to the Meta Conversions API.
+ * No event_id is included — deduplication against the browser Pixel is disabled.
+ *
+ * @param {object} opts
+ * @param {ParamBuilder} opts.paramBuilder      - An initialized CAPI Parameter Builder instance
+ * @param {string}   opts.eventSourceUrl    - Full URL of the page where the purchase occurred
+ * @param {string}   opts.clientUserAgent   - Requester User-Agent header (plain text — required by Meta)
+ * @param {string}   [opts.externalId]      - Unique user/session ID
+ * @param {string}   [opts.email]           - User email — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.phone]           - User phone — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.firstName]       - User first name — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.lastName]        - User last name — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.city]            - User city — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.state]           - User state (2-char) — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.zip]             - User ZIP — will be normalized & hashed by ParamBuilder
+ * @param {string}   [opts.country]         - User country (ISO alpha-2) — will be normalized & hashed by ParamBuilder
+ * @param {number}   opts.value             - Order total in USD
+ * @param {string[]} opts.contentIds        - Array of product content IDs
+ * @param {Array}    opts.contents          - Array of { id, quantity } objects
+ * @param {number}   opts.numItems          - Total number of items purchased
+ * @returns {Promise<object>}               - Meta API response
+ */
+async function sendPurchaseEvent(opts) {
+    const accessToken = process.env.META_ACCESS_TOKEN || DEMO_ACCESS_TOKEN;
+    const userData = buildUserData(opts.paramBuilder, opts);
 
     const payload = {
         data: [
             {
                 event_name:       'Purchase',
                 event_time:       nowInSeconds(),
-                event_id:         opts.eventId,
+                // No event_id — deduplication with browser Pixel is intentionally disabled
                 event_source_url: opts.eventSourceUrl,
                 action_source:    'website',
                 user_data:        userData,
@@ -161,4 +170,47 @@ async function sendPurchaseEvent(opts) {
     return postToMeta(accessToken, payload);
 }
 
-module.exports = { sendPurchaseEvent };
+/**
+ * Sends a server-side AddToCart event to the Meta Conversions API.
+ * No event_id is included — deduplication against the browser Pixel is disabled.
+ *
+ * @param {object} opts
+ * @param {ParamBuilder} opts.paramBuilder      - An initialized CAPI Parameter Builder instance
+ * @param {string}   opts.eventSourceUrl    - Full URL of the page where the add-to-cart occurred
+ * @param {string}   opts.clientUserAgent   - Requester User-Agent header (plain text — required by Meta)
+ * @param {string}   [opts.externalId]      - Unique user/session ID
+ * @param {number}   opts.value             - Price of the item added
+ * @param {string}   opts.contentId         - Product content ID
+ * @param {string}   opts.contentName       - Product name
+ * @returns {Promise<object>}               - Meta API response
+ */
+async function sendAddToCartEvent(opts) {
+    const accessToken = process.env.META_ACCESS_TOKEN || DEMO_ACCESS_TOKEN;
+    const userData = buildUserData(opts.paramBuilder, opts);
+
+    const payload = {
+        data: [
+            {
+                event_name:       'AddToCart',
+                event_time:       nowInSeconds(),
+                // No event_id — deduplication with browser Pixel is intentionally disabled
+                event_source_url: opts.eventSourceUrl,
+                action_source:    'website',
+                user_data:        userData,
+                custom_data: {
+                    currency:     'USD',
+                    value:        opts.value,
+                    content_ids:  [opts.contentId],
+                    content_type: 'product',
+                    contents:     [{ id: opts.contentId, quantity: 1 }],
+                    content_name: opts.contentName,
+                },
+            },
+        ],
+        test_event_code: TEST_EVENT_CODE,
+    };
+
+    return postToMeta(accessToken, payload);
+}
+
+module.exports = { sendPurchaseEvent, sendAddToCartEvent };
