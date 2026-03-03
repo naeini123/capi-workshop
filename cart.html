@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liverpool Fan Shop - Cart</title>
+    <title>Liverpool Fan Shop – Cart</title>
     <link id="favicon" rel="icon" href="Liverpool-FC-80s-icon.png" type="image/png">
     <link rel="stylesheet" href="styles.css">
-    <!-- Google Tag Manager Should Go Here -->
 
     <!-- Meta Pixel Base Code -->
     <script>
@@ -18,47 +17,53 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)}(window,document,'script',
       'https://connect.facebook.net/en_US/fbevents.js');
-
       fbq('init', '1914070242854182');
       fbq('track', 'PageView');
     </script>
-    <noscript>
-      <img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/>
-    </noscript>
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/></noscript>
     <!-- End Meta Pixel Base Code -->
 </head>
 <body>
-    <!-- Google Tag Manager (noscript) should go here-->
     <header>
         <nav>
+            <a class="nav-brand" href="index.html">
+                <img src="Liverpool-FC-80s-icon.png" alt="LFC">
+                Liverpool Fan Shop
+            </a>
             <ul>
                 <li><a href="index.html">Home</a></li>
                 <li><a href="products.html">Products</a></li>
-                <li><a href="cart.html">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="cart.html">Cart <span class="nav-cart-badge" id="cart-count">0</span></a></li>
             </ul>
         </nav>
     </header>
+
     <main>
-        <h1>Your Cart</h1>
-        <table id="cart-table">
-            <thead>
-                <tr>
-                    <th>Product</th>
-                    <th>Price</th>
-                    <th>Quantity</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody id="cart-body">
-            </tbody>
-        </table>
-        <br />
-        <div class="cart-total-section">
-            <p>Total: $<span id="cart-total">0</span></p>
+        <h1 class="page-title">Your Cart</h1>
+        <div class="cart-wrapper">
+            <table id="cart-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Quantity</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="cart-body"></tbody>
+            </table>
+            <div class="cart-footer">
+                <p class="cart-total">Order Total: $<span id="cart-total">0.00</span></p>
+                <button class="btn-checkout" onclick="initiateCheckout()">Proceed to Checkout &rarr;</button>
+            </div>
         </div>
-        <button onclick="initiateCheckout()">Proceed to Checkout</button>
     </main>
+
+    <footer>
+        &copy; 2025 Liverpool Fan Shop &mdash; Demo site for Meta CAPI Workshop
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>

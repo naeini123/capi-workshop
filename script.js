@@ -1,74 +1,118 @@
-// Create global variables
+// ─── Global user variables (populated from checkout form) ─────────────────────
 let userEmail = '';
-let userCity = '';
-let userZip = '';
-// Function to update global variables
-function updateVariables() {
-  const emailInput = document.getElementById('email');
-  const cityInput = document.getElementById('city');
-  const zipInput = document.getElementById('zip');
-  if (emailInput) {
-    userEmail = emailInput.value;
-  }
-  if (cityInput) {
-    userCity = cityInput.value;
-  }
-  if (zipInput) {
-    userZip = zipInput.value;
-  }
-}
-// Add event listeners to input boxes
-document.addEventListener('DOMContentLoaded', function() {
-  const emailInput = document.getElementById('email');
-  const cityInput = document.getElementById('city');
-  const zipInput = document.getElementById('zip');
-  updateVariables();
-  if (emailInput) {
-    emailInput.addEventListener('input', updateVariables);
-  }
-  if (cityInput) {
-    cityInput.addEventListener('input', updateVariables);
-  }
-  if (zipInput) {
-    zipInput.addEventListener('input', updateVariables);
-  }
-});
+let userCity  = '';
+let userZip   = '';
 
-// Get the cart count element
-const cartCountElement = document.getElementById('cart-count');
-
-// Initialize the cart
+// ─── Cart state ────────────────────────────────────────────────────────────────
 let cart = {};
 
-// Function to update the cart count
-function updateCartCount() {
-    const cartCount = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
-    cartCountElement.textContent = cartCount;
-}
-
-// ─── Meta Pixel: Product ID lookup ────────────────────────────────────────────
-// Maps product names to stable content_ids used in Pixel events
+// ─── Product ID map ────────────────────────────────────────────────────────────
 const productIds = {
-    'Liverpool Jersey': 'liverpool-jersey',
+    'Liverpool Jersey':               'liverpool-jersey',
     'Nike Air Max - Liverpool Shoes': 'nike-air-max-liverpool',
-    'Liverpool 24-25 Champions Shirt': 'lfc-champions-shirt-2425'
+    'Liverpool 24-25 Champions Shirt':'lfc-champions-shirt-2425'
 };
 
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+// Always look up the element fresh — avoids null-ref if script loads before DOM
+function updateCartCount() {
+    const el = document.getElementById('cart-count');
+    if (!el) return;
+    const count = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
+    el.textContent = count;
+}
+
+function getCartTotal() {
+    return Object.values(cart).reduce((acc, item) => acc + item.price * item.quantity, 0);
+}
+
+function saveCartToLocalStorage() {
+    localStorage.setItem('cart', JSON.stringify(cart));
+}
+
+function loadCartFromLocalStorage() {
+    try {
+        const stored = localStorage.getItem('cart');
+        if (stored) cart = JSON.parse(stored);
+    } catch (e) {
+        cart = {};
+    }
+    updateCartCount();
+}
+
+function showNotification(message) {
+    const note = document.createElement('div');
+    note.classList.add('notification');
+    note.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 20 20">
+            <path d="M10 2C5.14 2 1 5.14 1 10s4.14 8 9 8 9-4.14 9-8S14.86 2 10 2z"/>
+        </svg>
+        <span>${message}</span>`;
+    document.body.appendChild(note);
+    setTimeout(() => note.remove(), 3000);
+}
+
+// ─── Initialise on every page load ────────────────────────────────────────────
+loadCartFromLocalStorage();
+
+// ─── Checkout form: keep user variables in sync ────────────────────────────────
+function updateVariables() {
+    const emailInput = document.getElementById('email');
+    const cityInput  = document.getElementById('city');
+    const zipInput   = document.getElementById('zip');
+    if (emailInput) userEmail = emailInput.value;
+    if (cityInput)  userCity  = cityInput.value;
+    if (zipInput)   userZip   = zipInput.value;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    updateVariables();
+    ['email', 'city', 'zip'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateVariables);
+    });
+
+    // ── Cart page ──────────────────────────────────────────────────────────────
+    if (document.getElementById('cart-table')) {
+        displayCartTable();
+    }
+
+    // ── Checkout page ──────────────────────────────────────────────────────────
+    if (document.getElementById('cart-summary-table')) {
+        displayCartSummary();
+
+        const contents    = Object.keys(cart).map(name => ({
+            id: productIds[name] || name.toLowerCase().replace(/\s+/g, '-'),
+            quantity: cart[name].quantity
+        }));
+        const contentIds  = contents.map(c => c.id);
+        const numItems    = Object.values(cart).reduce((a, i) => a + i.quantity, 0);
+        const totalValue  = getCartTotal();
+
+        fbq('track', 'InitiateCheckout', {
+            content_ids: contentIds,
+            contents:    contents,
+            currency:    'USD',
+            num_items:   numItems,
+            value:       totalValue
+        });
+    }
+});
+
 // ─── Meta Pixel: ViewContent ───────────────────────────────────────────────────
-// Fires when a user clicks on a product (signals interest in a specific item)
 function trackViewContent(contentId, contentName, value) {
     fbq('track', 'ViewContent', {
-        content_ids: [contentId],
+        content_ids:  [contentId],
         content_type: 'product',
-        contents: [{ id: contentId, quantity: 1 }],
+        contents:     [{ id: contentId, quantity: 1 }],
         content_name: contentName,
-        currency: 'USD',
-        value: value
+        currency:     'USD',
+        value:        value
     });
 }
 
-// ─── Meta Pixel: AddToCart ─────────────────────────────────────────────────────
-// Function to add an item to the cart
+// ─── Add to Cart ───────────────────────────────────────────────────────────────
 function addToCart(name, price) {
     if (cart[name]) {
         cart[name].quantity++;
@@ -79,164 +123,127 @@ function addToCart(name, price) {
     showNotification(`Added ${name} to cart!`);
     saveCartToLocalStorage();
 
-    // Fire Meta Pixel AddToCart event
     const contentId = productIds[name] || name.toLowerCase().replace(/\s+/g, '-');
     fbq('track', 'AddToCart', {
-        content_ids: [contentId],
+        content_ids:  [contentId],
         content_type: 'product',
-        contents: [{ id: contentId, quantity: 1 }],
+        contents:     [{ id: contentId, quantity: 1 }],
         content_name: name,
-        currency: 'USD',
-        value: price
+        currency:     'USD',
+        value:        price
     });
 }
 
-// Function to remove an item from the cart
+// ─── Remove from Cart ──────────────────────────────────────────────────────────
 function removeFromCart(name) {
-    if (cart[name]) {
-        delete cart[name];
-    }
+    delete cart[name];
     updateCartCount();
     saveCartToLocalStorage();
 }
 
-// Function to save the cart to local storage
-function saveCartToLocalStorage() {
-    localStorage.setItem('cart', JSON.stringify(cart));
-}
-
-// Function to load the cart from local storage
-function loadCartFromLocalStorage() {
-    const storedCart = localStorage.getItem('cart');
-    if (storedCart) {
-        cart = JSON.parse(storedCart);
-        updateCartCount();
-    }
-}
-
-// Load the cart from local storage when the page loads
-loadCartFromLocalStorage();
-
-// Function to display the cart table
+// ─── Display Cart Table (cart.html) ───────────────────────────────────────────
 function displayCartTable() {
-    const cartTableBody = document.getElementById('cart-body');
-    cartTableBody.innerHTML = '';
-    for (const name in cart) {
-        const row = document.createElement('tr');
-        const nameCell = document.createElement('td');
-        nameCell.textContent = name;
-        row.appendChild(nameCell);
-        const priceCell = document.createElement('td');
-        priceCell.textContent = `$${cart[name].price}`;
-        row.appendChild(priceCell);
-        const quantityCell = document.createElement('td');
-        quantityCell.textContent = cart[name].quantity;
-        row.appendChild(quantityCell);
-        const totalCell = document.createElement('td');
-        totalCell.textContent = `$${cart[name].price * cart[name].quantity}`;
-        row.appendChild(totalCell);
-        cartTableBody.appendChild(row);
+    const tbody = document.getElementById('cart-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const keys = Object.keys(cart);
+    if (keys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="cart-empty">
+            Your cart is empty. <a href="products.html">Browse products</a>
+        </td></tr>`;
+    } else {
+        keys.forEach(name => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${name}</td>
+                <td>$${cart[name].price.toFixed(2)}</td>
+                <td>${cart[name].quantity}</td>
+                <td>$${(cart[name].price * cart[name].quantity).toFixed(2)}</td>`;
+            tbody.appendChild(row);
+        });
     }
 
-    // Calculate and display the cart total
-    const total = getCartTotal();
-    document.getElementById('cart-total').textContent = total.toFixed(2);
+    const totalEl = document.getElementById('cart-total');
+    if (totalEl) totalEl.textContent = getCartTotal().toFixed(2);
 }
 
-// Display the cart table when the cart page loads
-if (document.getElementById('cart-table')) {
-    displayCartTable();
+// ─── Display Cart Summary (checkout.html) ─────────────────────────────────────
+function displayCartSummary() {
+    const tbody = document.getElementById('cart-summary-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    Object.keys(cart).forEach(name => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${name}</td>
+            <td style="text-align:center">${cart[name].quantity}</td>
+            <td style="text-align:right">$${(cart[name].price * cart[name].quantity).toFixed(2)}</td>`;
+        tbody.appendChild(row);
+    });
+
+    const totalEl = document.getElementById('cart-total');
+    if (totalEl) totalEl.textContent = getCartTotal().toFixed(2);
 }
 
-// ─── Meta Pixel: InitiateCheckout ──────────────────────────────────────────────
-// Function to initiate checkout
+// ─── InitiateCheckout (from cart page button) ─────────────────────────────────
 function initiateCheckout() {
-    // Build cart contents array for Pixel
-    const contents = Object.keys(cart).map(name => ({
+    const contents   = Object.keys(cart).map(name => ({
         id: productIds[name] || name.toLowerCase().replace(/\s+/g, '-'),
         quantity: cart[name].quantity
     }));
     const contentIds = contents.map(c => c.id);
-    const numItems = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
-    const totalValue = getCartTotal();
+    const numItems   = Object.values(cart).reduce((a, i) => a + i.quantity, 0);
+    const total      = getCartTotal();
 
-    // Fire Meta Pixel InitiateCheckout event
     fbq('track', 'InitiateCheckout', {
         content_ids: contentIds,
-        contents: contents,
-        currency: 'USD',
-        num_items: numItems,
-        value: totalValue
+        contents:    contents,
+        currency:    'USD',
+        num_items:   numItems,
+        value:       total
     });
 
-    // Redirect to the checkout page
     window.location.href = 'checkout.html';
 }
 
-// ─── Meta Pixel: InitiateCheckout (on checkout page load) ─────────────────────
-// Also fires when the checkout page loads directly (e.g., via direct URL)
-if (document.getElementById('cart-summary-table')) {
-    loadCartFromLocalStorage();
-    displayCartSummary();
-
-    // Build cart contents array for Pixel
-    const checkoutContents = Object.keys(cart).map(name => ({
-        id: productIds[name] || name.toLowerCase().replace(/\s+/g, '-'),
-        quantity: cart[name].quantity
-    }));
-    const checkoutContentIds = checkoutContents.map(c => c.id);
-    const checkoutNumItems = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
-    const checkoutTotal = getCartTotal();
-
-    fbq('track', 'InitiateCheckout', {
-        content_ids: checkoutContentIds,
-        contents: checkoutContents,
-        currency: 'USD',
-        num_items: checkoutNumItems,
-        value: checkoutTotal
-    });
-}
-
-// ─── Meta Pixel + CAPI: Purchase ──────────────────────────────────────────────
-// Function to complete purchase
+// ─── Complete Purchase (checkout.html) ────────────────────────────────────────
 function completePurchase() {
-    // Capture cart data before clearing
-    const purchaseContents = Object.keys(cart).map(name => ({
+    updateVariables();
+
+    const contents   = Object.keys(cart).map(name => ({
         id: productIds[name] || name.toLowerCase().replace(/\s+/g, '-'),
         quantity: cart[name].quantity
     }));
-    const purchaseContentIds = purchaseContents.map(c => c.id);
-    const purchaseNumItems = Object.values(cart).reduce((acc, item) => acc + item.quantity, 0);
-    const purchaseTotal = getCartTotal();
+    const contentIds = contents.map(c => c.id);
+    const numItems   = Object.values(cart).reduce((a, i) => a + i.quantity, 0);
+    const total      = getCartTotal();
 
-    // Generate a unique event ID for deduplication between browser Pixel and CAPI
+    // Shared event ID for Pixel ↔ CAPI deduplication
     const eventId = 'purchase-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
 
-    // Re-initialise Pixel with PII from the checkout form (manual advanced matching)
+    // Re-init Pixel with PII for advanced matching
     fbq('init', '1914070242854182', {
         em: userEmail,
         ct: userCity ? userCity.toLowerCase().replace(/\s+/g, '') : '',
         zp: userZip
     });
 
-    // ── 1. Browser-side Meta Pixel Purchase event ──────────────────────────
+    // 1. Browser-side Pixel Purchase
     fbq('track', 'Purchase', {
-        content_ids: purchaseContentIds,
+        content_ids:  contentIds,
         content_type: 'product',
-        contents: purchaseContents,
-        currency: 'USD',
-        num_items: purchaseNumItems,
-        value: purchaseTotal
+        contents:     contents,
+        currency:     'USD',
+        num_items:    numItems,
+        value:        total
     }, { eventID: eventId });
 
-    // ── 2. Server-side CAPI Purchase event (via Express route) ────────────
-    // keepalive: true ensures the request is not cancelled when the page
-    // navigates away immediately after (window.location.href below).
-    // We also read the _fbp and _fbc first-party cookies set by the Meta
-    // Pixel and pass them to the server for better event match quality.
+    // 2. Server-side CAPI Purchase (keepalive survives page navigation)
     const getCookie = name => {
-        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-        return match ? decodeURIComponent(match[1]) : '';
+        const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : '';
     };
 
     fetch('/api/purchase', {
@@ -244,11 +251,11 @@ function completePurchase() {
         keepalive: true,
         headers:   { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            value:      purchaseTotal,
+            value:      total,
             currency:   'USD',
-            contentIds: purchaseContentIds,
-            contents:   purchaseContents,
-            numItems:   purchaseNumItems,
+            contentIds: contentIds,
+            contents:   contents,
+            numItems:   numItems,
             email:      userEmail,
             city:       userCity,
             zip:        userZip,
@@ -256,71 +263,14 @@ function completePurchase() {
             fbcCookie:  getCookie('_fbc'),
             eventId:    eventId
         })
-    }).then(res => res.json())
-      .then(data => console.log('[CAPI] Purchase response:', data))
-      .catch(err => console.error('[CAPI] Purchase error:', err));
+    })
+    .then(res => res.json())
+    .then(data => console.log('[CAPI] Purchase response:', data))
+    .catch(err  => console.error('[CAPI] Purchase error:', err));
 
-    // Clear the cart
+    // Clear cart and redirect
     cart = {};
     saveCartToLocalStorage();
     updateCartCount();
-
-    // Redirect to the purchase confirmation page
     window.location.href = 'purchase-confirmation.html';
-}
-
-// Add event listener to the purchase button
-if (document.getElementById('purchase-btn')) {
-    document.getElementById('purchase-btn').addEventListener('click', completePurchase);
-}
-
-function showNotification(message) {
-    const notification = document.createElement('div');
-    notification.classList.add('notification');
-    notification.innerHTML = `
-        <span>${message}</span>
-        <svg width="20" height="20" viewBox="0 0 20 20">
-            <path d="M10 2C5.14 2 1 5.14 1 10s4.14 8 9 8 9-4.14 9-8S14.86 2 10 2z" fill="#fff" />
-        </svg>
-    `;
-    document.body.appendChild(notification);
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
-}
-
-// Function to get the total value of the cart
-function getCartTotal() {
-    let total = 0;
-    for (const name in cart) {
-        total += cart[name].price * cart[name].quantity;
-    }
-    return total;
-}
-
-// Function to display the cart summary
-function displayCartSummary() {
-    const cartSummaryBody = document.getElementById('cart-summary-body');
-    cartSummaryBody.innerHTML = '';
-    for (const name in cart) {
-        const row = document.createElement('tr');
-        const productCell = document.createElement('td');
-        productCell.textContent = name;
-        productCell.style.width = '40%';
-        row.appendChild(productCell);
-        const quantityCell = document.createElement('td');
-        quantityCell.textContent = cart[name].quantity;
-        quantityCell.style.width = '20%';
-        quantityCell.style.textAlign = 'center';
-        row.appendChild(quantityCell);
-        const totalCell = document.createElement('td');
-        totalCell.textContent = `$${cart[name].price * cart[name].quantity}`;
-        totalCell.style.width = '40%';
-        totalCell.style.textAlign = 'right';
-        row.appendChild(totalCell);
-        cartSummaryBody.appendChild(row);
-    }
-    // Calculate and display the cart total
-    const total = getCartTotal();
-    document.getElementById('cart-total').textContent = total.toFixed(2);
 }

@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liverpool Fan Shop - Products</title>
+    <title>Liverpool Fan Shop – Products</title>
     <link id="favicon" rel="icon" href="Liverpool-FC-80s-icon.png" type="image/png">
     <link rel="stylesheet" href="styles.css">
-    <!-- Google Tag Manager Should Go Here -->
 
     <!-- Meta Pixel Base Code -->
     <script>
@@ -18,56 +17,68 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)}(window,document,'script',
       'https://connect.facebook.net/en_US/fbevents.js');
-
       fbq('init', '1914070242854182');
       fbq('track', 'PageView');
     </script>
-    <noscript>
-      <img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/>
-    </noscript>
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/></noscript>
     <!-- End Meta Pixel Base Code -->
 </head>
 <body>
-    <!-- Google Tag Manager (noscript) should go here-->
     <header>
         <nav>
+            <a class="nav-brand" href="index.html">
+                <img src="Liverpool-FC-80s-icon.png" alt="LFC">
+                Liverpool Fan Shop
+            </a>
             <ul>
                 <li><a href="index.html">Home</a></li>
                 <li><a href="products.html">Products</a></li>
-                <li><a href="cart.html">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="cart.html">Cart <span class="nav-cart-badge" id="cart-count">0</span></a></li>
             </ul>
         </nav>
     </header>
+
     <main>
-        <h1>Our Products</h1>
-       <div class="product-list">
-                <div class="product">
-                     <div class="content">
-                        <img src="https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/b4e36fa3-7a09-463d-ba35-0aff51968a97/LFC+M+NK+DF+JSY+SS+STAD+HM.png" alt="Rat Painting">
-                    </div>
+        <h1 class="page-title">All Products</h1>
+        <div class="product-list">
+            <div class="product">
+                <div class="content">
+                    <img src="https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/b4e36fa3-7a09-463d-ba35-0aff51968a97/LFC+M+NK+DF+JSY+SS+STAD+HM.png" alt="Liverpool Jersey">
+                </div>
+                <div class="product-info">
                     <h3>Liverpool Jersey</h3>
-                    <p>$100</p>
+                    <p class="price">$100.00</p>
                     <button onclick="trackViewContent('liverpool-jersey', 'Liverpool Jersey', 100); addToCart('Liverpool Jersey', 100)">Add to Cart</button>
                 </div>
-                <div class="product">
-                    <div class="content">
-                        <img src="https://images.stockx.com/images/Nike-Air-Max-95-OG-Liverpool-FC.jpg?fit=fill&bg=FFFFFF&w=690&h=520&q=57&dpr=2&trim=color&updated_at=1743706052" alt="Liverpool Air Max Shoes">
-                    </div>
-                    <h3>Nike Air Max - Liverpool Shoes</h3>
-                    <p>$150</p>
+            </div>
+            <div class="product">
+                <div class="content">
+                    <img src="https://images.stockx.com/images/Nike-Air-Max-95-OG-Liverpool-FC.jpg?fit=fill&bg=FFFFFF&w=690&h=520&q=57&dpr=2&trim=color&updated_at=1743706052" alt="Liverpool Air Max Shoes">
+                </div>
+                <div class="product-info">
+                    <h3>Nike Air Max – Liverpool</h3>
+                    <p class="price">$150.00</p>
                     <button onclick="trackViewContent('nike-air-max-liverpool', 'Nike Air Max - Liverpool Shoes', 150); addToCart('Nike Air Max - Liverpool Shoes', 150)">Add to Cart</button>
                 </div>
-                <div class="product">
+            </div>
+            <div class="product">
                 <div class="content">
-                        <img src="https://store.liverpoolfc.com/media/catalog/product/cache/1a0cb1341925e7af2209243f094808d7/7/6/76685-HERO-000095.png">
-                    </div>
+                    <img src="https://store.liverpoolfc.com/media/catalog/product/cache/1a0cb1341925e7af2209243f094808d7/7/6/76685-HERO-000095.png" alt="Liverpool Champions Shirt">
+                </div>
+                <div class="product-info">
                     <h3>Liverpool 24-25 Champions Shirt</h3>
-                    <p>$175</p>
+                    <p class="price">$175.00</p>
                     <button onclick="trackViewContent('lfc-champions-shirt-2425', 'Liverpool 24-25 Champions Shirt', 175); addToCart('Liverpool 24-25 Champions Shirt', 175)">Add to Cart</button>
                 </div>
             </div>
+        </div>
     </main>
+
+    <footer>
+        &copy; 2025 Liverpool Fan Shop &mdash; Demo site for Meta CAPI Workshop
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>

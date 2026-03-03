@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liverpool Fan Shop - Purchase Confirmation</title>
+    <title>Liverpool Fan Shop – Order Confirmed</title>
     <link id="favicon" rel="icon" href="Liverpool-FC-80s-icon.png" type="image/png">
     <link rel="stylesheet" href="styles.css">
-    <!-- Google Tag Manager Should Go Here -->
 
     <!-- Meta Pixel Base Code -->
     <script>
@@ -18,34 +17,47 @@
       t.src=v;s=b.getElementsByTagName(e)[0];
       s.parentNode.insertBefore(t,s)}(window,document,'script',
       'https://connect.facebook.net/en_US/fbevents.js');
-
       fbq('init', '1914070242854182');
       fbq('track', 'PageView');
     </script>
-    <noscript>
-      <img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/>
-    </noscript>
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=1914070242854182&ev=PageView&noscript=1"/></noscript>
     <!-- End Meta Pixel Base Code -->
 </head>
 <body>
-    <!-- Google Tag Manager (noscript) should go here-->
     <header>
         <nav>
+            <a class="nav-brand" href="index.html">
+                <img src="Liverpool-FC-80s-icon.png" alt="LFC">
+                Liverpool Fan Shop
+            </a>
             <ul>
                 <li><a href="index.html">Home</a></li>
                 <li><a href="products.html">Products</a></li>
-                <li><a href="cart.html">Cart (<span id="cart-count">0</span>)</a></li>
+                <li><a href="cart.html">Cart <span class="nav-cart-badge" id="cart-count">0</span></a></li>
             </ul>
         </nav>
     </header>
+
     <main>
-        <h1>Purchase Confirmation</h1>
-        <p>Thank you for your purchase!</p>
-        <p>Your order has been successfully processed.</p>
-        <p>We will send you a confirmation email with the details of your order.</p>
-        <button onclick="window.location.href='index.html'">Return to Home Page</button>
+        <div class="confirmation-card">
+            <div class="confirmation-icon">
+                <svg viewBox="0 0 24 24">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <h1>Order Confirmed!</h1>
+            <p>Thank you for your purchase.</p>
+            <p>Your order has been successfully processed.</p>
+            <p>A confirmation email will be sent to you shortly.</p>
+            <button class="btn-home" onclick="window.location.href='index.html'">Continue Shopping</button>
+        </div>
     </main>
+
+    <footer>
+        &copy; 2025 Liverpool Fan Shop &mdash; Demo site for Meta CAPI Workshop
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>
